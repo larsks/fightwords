@@ -53,6 +53,30 @@ class FightWordGenerator:
         """Apply dithering to convert grayscale to pure B&W using PIL's built-in method"""
         return image.convert("1")  # PIL automatically applies Floyd-Steinberg dithering
 
+    def get_content_bounds(self, image):
+        """Find the bounding box of non-white content in the image"""
+        # Convert to grayscale if needed
+        if image.mode != 'L':
+            image = image.convert('L')
+        
+        width, height = image.size
+        left, top, right, bottom = width, height, 0, 0
+        
+        # Find the bounds of non-white content (anything < 255)
+        for y in range(height):
+            for x in range(width):
+                if image.getpixel((x, y)) < 255:  # Non-white pixel
+                    left = min(left, x)
+                    top = min(top, y)
+                    right = max(right, x)
+                    bottom = max(bottom, y)
+        
+        # If no content found, return full image bounds
+        if left >= right or top >= bottom:
+            return (0, 0, width, height)
+        
+        return (left, top, right + 1, bottom + 1)
+
     def create_starburst_background(self, draw, cx, cy, inner_radius, outer_radius):
         """Create randomized starburst background with varying points and irregularity"""
         points = random.randint(12, 20)  # Variable number of points
@@ -175,62 +199,59 @@ class FightWordGenerator:
 
     def generate_fight_word(self, word, output_path=None):
         """Generate a single fight word image with randomized distortion and rotation"""
-        # Create larger canvas for rotation
-        canvas_size = max(self.width, self.height) * 2
+        # Create much larger canvas for distortions - scale factor for safety margin
+        scale_factor = 4
+        large_width = self.width * scale_factor
+        large_height = self.height * scale_factor
+        canvas_size = max(large_width, large_height) * 2
         temp_img = Image.new("L", (canvas_size, canvas_size), 255)
         draw = ImageDraw.Draw(temp_img)
 
         # Calculate center of temp canvas
         temp_cx, temp_cy = canvas_size // 2, canvas_size // 2
 
-        # Create starburst background on temp canvas
-        self.create_starburst_background(draw, temp_cx, temp_cy, 20, canvas_size // 4)
-
-        # Load font with dynamic sizing that ensures text fits
-        font_size = self.get_font_size(word, self.width - 20, self.height - 20)
+        # Load font with dynamic sizing for larger canvas - no safety margins needed
+        font_size = self.get_font_size(word, large_width, large_height)
         font = self._load_font(font_size)
 
-        # Check if text fits and adjust if needed
+        # Get text dimensions
         bbox = draw.textbbox((0, 0), word, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
-
-        # If text is too big for final output, scale down font
-        max_attempts = 5
-        while (
-            text_width > self.width - 10 or text_height > self.height - 10
-        ) and max_attempts > 0:
-            font_size = int(font_size * 0.85)  # Reduce by 15%
-            font = self._load_font(font_size)
-            bbox = draw.textbbox((0, 0), word, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            max_attempts -= 1
 
         # Center the text on temp canvas
         text_x = (canvas_size - text_width) // 2
         text_y = (canvas_size - text_height) // 2
 
-        # Add smaller random position offset that won't push text off screen
-        max_offset_x = min(10, (self.width - text_width) // 4)
-        max_offset_y = min(8, (self.height - text_height) // 4)
-        offset_x = random.randint(-max_offset_x, max_offset_x)
-        offset_y = random.randint(-max_offset_y, max_offset_y)
+        # Add generous random position offset - bounds detection will handle it
+        max_offset_x = max(0, (large_width - text_width) // 3)
+        max_offset_y = max(0, (large_height - text_height) // 3)
+        
+        if max_offset_x > 0:
+            offset_x = random.randint(-max_offset_x, max_offset_x)
+        else:
+            offset_x = 0
+            
+        if max_offset_y > 0:
+            offset_y = random.randint(-max_offset_y, max_offset_y)
+        else:
+            offset_y = 0
+            
         text_x += offset_x
         text_y += offset_y
 
-        # Draw text with outline on temp canvas
-        self.draw_text_with_outline(draw, word, text_x, text_y, font, outline_width=2)
+        # Draw text with outline on temp canvas - scale outline too
+        self.draw_text_with_outline(draw, word, text_x, text_y, font, outline_width=2 * scale_factor)
 
         # Apply random rotation (-15 to +15 degrees)
         rotation_angle = random.uniform(-15, 15)
         rotated_img = temp_img.rotate(rotation_angle, expand=False, fillcolor=255)
 
-        # Crop back to original size from center
-        left = (canvas_size - self.width) // 2
-        top = (canvas_size - self.height) // 2
-        right = left + self.width
-        bottom = top + self.height
+        # Crop to large size from center before distortions
+        left = (canvas_size - large_width) // 2
+        top = (canvas_size - large_height) // 2
+        right = left + large_width
+        bottom = top + large_height
         final_img = rotated_img.crop((left, top, right, bottom))
 
         if "shear" in self.allowed_distortions:
@@ -325,6 +346,48 @@ class FightWordGenerator:
                         distorted.putpixel((x, y), pixel)
 
             final_img = distorted
+
+        # Find the bounds of text content after all distortions (ignoring background)
+        content_bounds = self.get_content_bounds(final_img)
+        
+        # Crop to content bounds
+        cropped_img = final_img.crop(content_bounds)
+        
+        # Scale cropped content to fill target size while maintaining aspect ratio
+        crop_width = content_bounds[2] - content_bounds[0]
+        crop_height = content_bounds[3] - content_bounds[1]
+        
+        # Calculate scale to fit within target dimensions
+        scale_x = self.width / crop_width
+        scale_y = self.height / crop_height
+        scale = min(scale_x, scale_y)  # Use smaller scale to ensure it fits
+        
+        # Calculate new size and resize
+        new_width = int(crop_width * scale)
+        new_height = int(crop_height * scale)
+        scaled_img = cropped_img.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Calculate the effective scale factor that was applied to the text
+        # This tells us how much the background should be scaled too
+        effective_scale = scale * scale_factor  # scale_factor was used for initial canvas, scale was used for final sizing
+        
+        # Create final image with background scaled to match text transformation
+        final_img = Image.new("L", (self.width, self.height), 255)
+        bg_draw = ImageDraw.Draw(final_img)
+        final_cx, final_cy = self.width // 2, self.height // 2
+        
+        # Scale background elements to match the text scale
+        bg_inner_radius = int(20 * effective_scale)
+        bg_outer_radius = int(min(self.width, self.height) * 0.4)  # Use a larger radius for full coverage
+        self.create_starburst_background(bg_draw, final_cx, final_cy, bg_inner_radius, bg_outer_radius)
+        
+        # Overlay the optimally-scaled text on top of background
+        x_offset = (self.width - new_width) // 2
+        y_offset = (self.height - new_height) // 2
+        
+        # Paste the entire text image over the background - text should be opaque
+        # This will cover the background with white letters and black outlines
+        final_img.paste(scaled_img, (x_offset, y_offset))
 
         # Apply dithering using PIL's built-in method
         dithered_img = self.apply_dithering(final_img)
