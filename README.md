@@ -28,17 +28,20 @@ uv run fighting-words.py path/to/your/wordlist.txt
 
 ```
 usage: fight_word_generator.py [-h] [--font FONT_NAME] [--output OUTPUT_DIR]
-                               [--negate]
+                               [--negate] [--distortion DISTORTIONS]
                                [input_file]
 
 Generate Batman-style fight word images
 
 positional arguments:
-  input_file           Input file containing fight words (default: words.txt)
+  input_file            Input file containing fight words (default: words.txt)
 
 options:
-  -h, --help           show this help message and exit
-  --font FONT_NAME     Path to custom font file (e.g., /path/to/font.ttf)
-  --output OUTPUT_DIR  Output directory (default: output)
-  --negate             Reverse colors (white text on black background)
+  -h, --help            show this help message and exit
+  --font FONT_NAME      Path to custom font file (e.g., /path/to/font.ttf)
+  --output OUTPUT_DIR   Output directory (default: output)
+  --negate              Reverse colors (white text on black background)
+  --distortion DISTORTIONS
+                        Comma-separated list of distortions to apply
+                        (shear,fisheye,perspective). Default: all
 ```

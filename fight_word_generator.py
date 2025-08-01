@@ -15,13 +15,21 @@ from PIL import ImageFilter
 
 
 class FightWordGenerator:
-    def __init__(self, width=128, height=64, seed=None, font_name=None, negate=False, distortions=None):
+    def __init__(
+        self,
+        width=128,
+        height=64,
+        seed=None,
+        font_name=None,
+        negate=False,
+        distortions=None,
+    ):
         self.width = width
         self.height = height
         self.font_name = font_name
         self.negate = negate
         self.font_path = None  # Cache the resolved font path
-        
+
         # Set allowed distortions
         if distortions is None:
             self.allowed_distortions = ["shear", "fisheye", "perspective"]
@@ -217,13 +225,7 @@ class FightWordGenerator:
         bottom = top + self.height
         final_img = rotated_img.crop((left, top, right, bottom))
 
-        # Apply random distortion from allowed types
-        if self.allowed_distortions:
-            distortion_type = random.choice(self.allowed_distortions)
-        else:
-            distortion_type = None
-
-        if distortion_type == "shear":
+        if "shear" in self.allowed_distortions:
             # More aggressive shear distortion
             shear_x = random.uniform(-0.25, 0.25)
             shear_y = random.uniform(-0.15, 0.15)
@@ -242,7 +244,7 @@ class FightWordGenerator:
 
             final_img = distorted
 
-        elif distortion_type == "fisheye":
+        if "fisheye" in self.allowed_distortions:
             # Fish-eye lens distortion - bulges center and compresses edges
             width, height = final_img.size
             distorted = Image.new("L", (width, height), 255)
@@ -282,7 +284,7 @@ class FightWordGenerator:
 
             final_img = distorted
 
-        else:  # perspective
+        if "perspective" in self.allowed_distortions:
             # Perspective-like distortion by stretching corners
             stretch_factor = random.uniform(0.05, 0.25)
             corner = random.choice(["top", "bottom", "left", "right"])
@@ -345,7 +347,9 @@ class FightWordGenerator:
                 continue
 
             # Clean filename
-            filename = f"{i:02d}_{word.replace('!', '').replace('-', '_').replace(' ', '_')}.png"
+            filename = (
+                f"{word.replace('!', '').replace('-', '_').replace(' ', '_')}.png"
+            )
             output_path = os.path.join(output_dir, filename)
 
             print(f"Generating {filename}...")
@@ -395,7 +399,7 @@ def main():
     # Parse distortions
     allowed_distortions = None
     if args.distortions:
-        allowed_distortions = [d.strip() for d in args.distortions.split(',')]
+        allowed_distortions = [d.strip() for d in args.distortions.split(",")]
         valid_distortions = ["shear", "fisheye", "perspective"]
         invalid = [d for d in allowed_distortions if d not in valid_distortions]
         if invalid:
@@ -404,9 +408,7 @@ def main():
             sys.exit(1)
 
     generator = FightWordGenerator(
-        font_name=args.font_name, 
-        negate=args.negate,
-        distortions=allowed_distortions
+        font_name=args.font_name, negate=args.negate, distortions=allowed_distortions
     )
     generator.process_word_list(args.input_file, args.output_dir)
 
