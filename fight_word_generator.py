@@ -15,12 +15,18 @@ from PIL import ImageFilter
 
 
 class FightWordGenerator:
-    def __init__(self, width=128, height=64, seed=None, font_name=None, negate=False):
+    def __init__(self, width=128, height=64, seed=None, font_name=None, negate=False, distortions=None):
         self.width = width
         self.height = height
         self.font_name = font_name
         self.negate = negate
         self.font_path = None  # Cache the resolved font path
+        
+        # Set allowed distortions
+        if distortions is None:
+            self.allowed_distortions = ["shear", "fisheye", "perspective"]
+        else:
+            self.allowed_distortions = distortions
 
         # Resolve font path once during initialization
         if self.font_name:
@@ -211,8 +217,11 @@ class FightWordGenerator:
         bottom = top + self.height
         final_img = rotated_img.crop((left, top, right, bottom))
 
-        # Apply random distortion - always apply some form of distortion
-        distortion_type = random.choice(["shear", "fisheye", "perspective"])
+        # Apply random distortion from allowed types
+        if self.allowed_distortions:
+            distortion_type = random.choice(self.allowed_distortions)
+        else:
+            distortion_type = None
 
         if distortion_type == "shear":
             # More aggressive shear distortion
@@ -371,6 +380,11 @@ def main():
         action="store_true",
         help="Reverse colors (white text on black background)",
     )
+    parser.add_argument(
+        "--distortion",
+        dest="distortions",
+        help="Comma-separated list of distortions to apply (shear,fisheye,perspective). Default: all",
+    )
 
     args = parser.parse_args()
 
@@ -378,7 +392,22 @@ def main():
         print(f"Error: {args.input_file} not found!")
         sys.exit(1)
 
-    generator = FightWordGenerator(font_name=args.font_name, negate=args.negate)
+    # Parse distortions
+    allowed_distortions = None
+    if args.distortions:
+        allowed_distortions = [d.strip() for d in args.distortions.split(',')]
+        valid_distortions = ["shear", "fisheye", "perspective"]
+        invalid = [d for d in allowed_distortions if d not in valid_distortions]
+        if invalid:
+            print(f"Error: Invalid distortion types: {', '.join(invalid)}")
+            print(f"Valid options: {', '.join(valid_distortions)}")
+            sys.exit(1)
+
+    generator = FightWordGenerator(
+        font_name=args.font_name, 
+        negate=args.negate,
+        distortions=allowed_distortions
+    )
     generator.process_word_list(args.input_file, args.output_dir)
 
 
