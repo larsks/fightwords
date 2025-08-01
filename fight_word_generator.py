@@ -367,26 +367,12 @@ class FightWordGenerator:
         new_height = int(crop_height * scale)
         scaled_img = cropped_img.resize((new_width, new_height), Image.LANCZOS)
         
-        # Calculate the effective scale factor that was applied to the text
-        # This tells us how much the background should be scaled too
-        effective_scale = scale * scale_factor  # scale_factor was used for initial canvas, scale was used for final sizing
-        
-        # Create final image with background scaled to match text transformation
+        # Create clean final image and center the optimally-scaled text
         final_img = Image.new("L", (self.width, self.height), 255)
-        bg_draw = ImageDraw.Draw(final_img)
-        final_cx, final_cy = self.width // 2, self.height // 2
-        
-        # Scale background elements to match the text scale
-        bg_inner_radius = int(20 * effective_scale)
-        bg_outer_radius = int(min(self.width, self.height) * 0.4)  # Use a larger radius for full coverage
-        self.create_starburst_background(bg_draw, final_cx, final_cy, bg_inner_radius, bg_outer_radius)
-        
-        # Overlay the optimally-scaled text on top of background
         x_offset = (self.width - new_width) // 2
         y_offset = (self.height - new_height) // 2
         
-        # Paste the entire text image over the background - text should be opaque
-        # This will cover the background with white letters and black outlines
+        # Paste the text image - clean white background with text
         final_img.paste(scaled_img, (x_offset, y_offset))
 
         # Apply dithering using PIL's built-in method
