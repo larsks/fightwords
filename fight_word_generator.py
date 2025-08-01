@@ -20,15 +20,15 @@ class FightWordGenerator:
         width=128,
         height=64,
         seed=None,
-        font_name=None,
+        font_names=None,
         negate=False,
         distortions=None,
     ):
         self.width = width
         self.height = height
-        self.font_name = font_name
+        self.font_names = font_names or []
         self.negate = negate
-        self.font_path = None  # Cache the resolved font path
+        self.font_cache = {}  # Cache loaded fonts by size
 
         # Set allowed distortions
         if distortions is None:
@@ -36,12 +36,15 @@ class FightWordGenerator:
         else:
             self.allowed_distortions = distortions
 
-        # Resolve font path once during initialization
-        if self.font_name:
-            if os.path.exists(self.font_name):
-                self.font_path = self.font_name
+        # Resolve font paths during initialization
+        self.font_paths = []
+        for font_name in self.font_names:
+            if os.path.exists(font_name):
+                self.font_paths.append(font_name)
             else:
-                self.font_path = self._find_font_file(self.font_name)
+                font_path = self._find_font_file(font_name)
+                if font_path:
+                    self.font_paths.append(font_path)
 
         if seed is not None:
             random.seed(seed)  # For reproducible results in testing
@@ -80,9 +83,7 @@ class FightWordGenerator:
         """Find font file by name using fontconfig"""
         try:
             # Use fontconfig.fromName() to find the font
-            print("before load")
             font_obj = fontconfig.fromName(font_name)
-            print("after load")
             if font_obj and hasattr(font_obj, "file"):
                 font_path = font_obj.file
                 if os.path.exists(font_path):
@@ -111,15 +112,22 @@ class FightWordGenerator:
         return None
 
     def _load_font(self, font_size):
-        """Load font with specified size, trying custom font first if provided"""
-        if self.font_path:
-            try:
-                font = ImageFont.truetype(self.font_path, font_size)
-                return font
-            except (OSError, IOError):
-                print(
-                    f"Warning: Could not load font from '{self.font_path}', falling back to default"
-                )
+        """Load font with specified size, randomly selecting from available fonts and caching"""
+        if self.font_paths:
+            # Check if we already have fonts cached for this size
+            if font_size not in self.font_cache:
+                self.font_cache[font_size] = []
+                # Load all available fonts for this size
+                for font_path in self.font_paths:
+                    try:
+                        font = ImageFont.truetype(font_path, font_size)
+                        self.font_cache[font_size].append(font)
+                    except (OSError, IOError):
+                        print(f"Warning: Could not load font from '{font_path}'")
+
+            # If we have cached fonts for this size, randomly select one
+            if self.font_cache[font_size]:
+                return random.choice(self.font_cache[font_size])
 
         # Try default system fonts
         try:
@@ -370,8 +378,8 @@ def main():
     )
     parser.add_argument(
         "--font",
-        dest="font_name",
-        help="Path to custom font file (e.g., /path/to/font.ttf)",
+        dest="font_names",
+        help="Comma-separated list of font paths or names (e.g., arial.ttf,helvetica.ttf)",
     )
     parser.add_argument(
         "--output",
@@ -407,8 +415,13 @@ def main():
             print(f"Valid options: {', '.join(valid_distortions)}")
             sys.exit(1)
 
+    # Parse font names
+    font_names = []
+    if args.font_names:
+        font_names = [name.strip() for name in args.font_names.split(",")]
+
     generator = FightWordGenerator(
-        font_name=args.font_name, negate=args.negate, distortions=allowed_distortions
+        font_names=font_names, negate=args.negate, distortions=allowed_distortions
     )
     generator.process_word_list(args.input_file, args.output_dir)
 
