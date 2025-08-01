@@ -1,3 +1,7 @@
+![BAM!](./examples/BAM.png)
+![POW!](./examples/POW.png)
+![ZAP!](./examples/ZAP.png)
+
 # Fighting Words
 
 Generates black-and-white images suitable for a 128x64 OLED display in the style of the onomatopoetic fighting words used in the old [Batman TV series]. This repository includes in `words.txt` all the [bat-fight words] used in the series.
