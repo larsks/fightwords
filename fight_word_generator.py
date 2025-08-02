@@ -405,21 +405,23 @@ class WordGenerator:
 
         return (left, top, right + 1, bottom + 1)
 
-    def detect_clipping(self, image: Image.Image, content_bounds: tuple[int, int, int, int]) -> bool:
+    def detect_clipping(
+        self, image: Image.Image, content_bounds: tuple[int, int, int, int]
+    ) -> bool:
         """Detect if content has been clipped at image edges"""
         img_width, img_height = image.size
         left, top, right, bottom = content_bounds
-        
+
         # Check if content touches any edge (with small tolerance)
         edge_tolerance = 2
-        
+
         clipped = (
-            left <= edge_tolerance or 
-            top <= edge_tolerance or 
-            right >= img_width - edge_tolerance or 
-            bottom >= img_height - edge_tolerance
+            left <= edge_tolerance
+            or top <= edge_tolerance
+            or right >= img_width - edge_tolerance
+            or bottom >= img_height - edge_tolerance
         )
-        
+
         return clipped
 
     def apply_rotation(self, image: Image.Image):
@@ -465,7 +467,7 @@ class WordGenerator:
     def generate(self, word: str, output_path: str | None = None) -> Image.Image:
         """Generate a fight word image"""
         # Set up canvas dimensions
-        scale_factor = 4
+        scale_factor = 5
         large_width = self.width * scale_factor
         large_height = self.height * scale_factor
         canvas_size = max(large_width, large_height) * 2
@@ -490,17 +492,20 @@ class WordGenerator:
         working_img = rotated_img.crop((left, top, right, bottom))
 
         # Apply distortions with retry logic for clipping
-        max_attempts = 5
+        max_attempts = 10
         for attempt in range(max_attempts):
             distorted_img = self.distorter.apply_distortions(working_img)
-            
+
             # Check for clipping
             distorted_bounds = self.get_content_bounds(distorted_img)
             if not self.detect_clipping(distorted_img, distorted_bounds):
                 break  # Success - no clipping detected
-                
+
             if attempt == max_attempts - 1:
-                print(f"WARNING: Could not avoid clipping for '{word}' after {max_attempts} attempts")
+                print(
+                    f"WARNING: Could not avoid clipping for '{word}' after {max_attempts} attempts",
+                    file=sys.stderr,
+                )
 
         # Scale to target size
         final_img = self.scale_to_target(distorted_img)
