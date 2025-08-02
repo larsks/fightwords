@@ -27,7 +27,7 @@ uv run fighting-words.py path/to/your/wordlist.txt
 ## Usage
 
 ```
-usage: fight_word_generator.py [-h] [--font FONT_NAME] [--output OUTPUT_DIR]
+usage: fight_word_generator.py [-h] [--font FONT_NAMES] [--output OUTPUT_DIR]
                                [--negate] [--distortion DISTORTIONS]
                                [input_file]
 
@@ -38,7 +38,8 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --font FONT_NAME      Path to custom font file (e.g., /path/to/font.ttf)
+  --font FONT_NAMES     Comma-separated list of font paths or names (e.g.,
+                        arial.ttf,helvetica.ttf)
   --output OUTPUT_DIR   Output directory (default: output)
   --negate              Reverse colors (white text on black background)
   --distortion DISTORTIONS
