@@ -9,13 +9,13 @@ import os
 import random
 import sys
 import argparse
-import fontconfig
 
 from typing import cast
 from dataclasses import dataclass
 from functools import cache
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from matplotlib import font_manager
 
 
 @dataclass
@@ -43,17 +43,19 @@ class FontManager:
         """Resolve font names to actual file paths"""
         paths: list[str] = []
         for font_name in self.font_names:
-            if os.path.exists(font_name):
-                paths.append(font_name)
+            font_path = os.path.expanduser(font_name)
+            if os.path.exists(font_path):
+                paths.append(font_path)
             else:
                 font_path = self._find_font_file(font_name)
-                if font_path:
-                    paths.append(font_path)
+
+            if font_path:
+                paths.append(font_path)
         return paths
 
     @cache
     def _find_font_file(self, font_name: str) -> str | None:
-        """Find font file by name using fontconfig"""
+        """Find font file by name using matplotlib font manager"""
         # Try common variations of the font name
         name_variants: list[str] = [
             font_name,
@@ -62,15 +64,37 @@ class FontManager:
             font_name.replace(" ", "_"),
         ]
 
+        # Get all system fonts
+        try:
+            system_fonts: list[str] = font_manager.findSystemFonts()  # pyright:ignore[reportUnknownMemberType]
+        except Exception:
+            return None
+
         for variant in name_variants:
-            try:
-                font_obj = fontconfig.fromName(variant)  # pyright:ignore[reportUnknownMemberType,reportUnknownVariableType]
-                if font_obj and hasattr(font_obj, "file"):  # pyright:ignore[reportUnknownArgumentType]
-                    font_path: str = cast(str, font_obj.file)
-                    if os.path.exists(font_path):
-                        return font_path
-            except Exception:
-                continue
+            variant_lower = variant.lower()
+
+            # Search through system fonts
+            for font_path in system_fonts:
+                try:
+                    # Get font properties
+                    font_props = font_manager.FontProperties(fname=font_path)
+                    font_family: str = font_props.get_name().lower()
+
+                    # Check if variant matches font family name
+                    if variant_lower in font_family or font_family in variant_lower:
+                        if os.path.exists(font_path):
+                            return font_path
+
+                    # Also check the filename without extension
+                    font_filename = os.path.splitext(os.path.basename(font_path))[
+                        0
+                    ].lower()
+                    if variant_lower in font_filename or font_filename in variant_lower:
+                        if os.path.exists(font_path):
+                            return font_path
+
+                except Exception:
+                    continue
 
         return None
 
@@ -405,7 +429,7 @@ class WordGenerator:
         # Calculate new size and resize
         new_width = int(crop_width * scale)
         new_height = int(crop_height * scale)
-        scaled_img: Image.Image = cropped_img.resize(  # pyright:ignore[reportUnknownMemberType]
+        scaled_img: Image.Image = cropped_img.resize(
             (new_width, new_height), Image.Resampling.LANCZOS
         )
 
@@ -478,6 +502,9 @@ class WordGenerator:
 
         for word in words:
             if not word:  # Skip empty words
+                continue
+
+            if word.startswith("#"):  # Skip comments
                 continue
 
             # Clean filename
