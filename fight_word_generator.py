@@ -9,6 +9,7 @@ import os
 import random
 import sys
 import argparse
+import logging
 
 from typing import cast
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from functools import cache
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from matplotlib import font_manager
+
+LOG = logging.getLogger((__name__))
 
 
 @dataclass
@@ -501,10 +504,10 @@ class WordGenerator:
             if not self.detect_clipping(distorted_img, distorted_bounds):
                 break  # Success - no clipping detected
 
+            LOG.warning(f"clipping detected for '{word}'; retrying")
             if attempt == max_attempts - 1:
-                print(
-                    f"WARNING: Could not avoid clipping for '{word}' after {max_attempts} attempts",
-                    file=sys.stderr,
+                LOG.warning(
+                    f"could not avoid clipping for '{word}' after {max_attempts} attempts",
                 )
 
         # Scale to target size
